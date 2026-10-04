@@ -10,13 +10,30 @@ Tested on `Thor_V1.0.0.377_20260206_165408_user` with Magisk 30.7.
 
 **On the Thor** (terminal app, no computer needed):
 
+Open your terminal app and get a root shell:
+
 ```sh
 su
+```
+
+Download the script:
+
+```sh
 curl -fsSL https://raw.githubusercontent.com/MatthewGlenn/ayn-thor-wifi-fix/main/thor-wifi.sh \
   -o /data/local/tmp/thor-wifi.sh
-cp /data/local/tmp/thor-wifi.sh /data/adb/service.d/
-chmod 755 /data/adb/service.d/thor-wifi.sh
-chown root:root /data/adb/service.d/thor-wifi.sh
+```
+
+Install it as a boot script:
+
+```sh
+cp /data/local/tmp/thor-wifi.sh /data/adb/service.d/ && \
+  chmod 755 /data/adb/service.d/thor-wifi.sh && \
+  chown root:root /data/adb/service.d/thor-wifi.sh
+```
+
+Configure it (prompts for SSID, password and band):
+
+```sh
 sh /data/adb/service.d/thor-wifi.sh --setup
 ```
 
@@ -28,11 +45,23 @@ You'll need to have `adb` installed and properly configured on your computer.
 
 These commands should work on any modern Linux, macOS, or Windows machine with `adb` installed.
 
+Push the script to the device:
+
 ```sh
 adb push thor-wifi.sh /data/local/tmp/
+```
+
+Install it as a boot script:
+
+```sh
 adb shell "su -c 'cp /data/local/tmp/thor-wifi.sh /data/adb/service.d/ && \
   chmod 755 /data/adb/service.d/thor-wifi.sh && \
   chown root:root /data/adb/service.d/thor-wifi.sh'"
+```
+
+Configure it (prompts for SSID, password and band):
+
+```sh
 adb shell "su -c 'sh /data/adb/service.d/thor-wifi.sh --setup'"
 ```
 
@@ -179,15 +208,26 @@ behind `NETWORK_SETTINGS`, which is root-only. Shizuku and Tasker run as UID
 ### Install on the Thor itself (no computer)
 
 If you have a terminal app on the device, you can skip the computer entirely.
-Download the script straight to the device and install it from a root shell:
+
+Get a root shell:
 
 ```sh
 su
+```
+
+Download the script straight to the device:
+
+```sh
 curl -fsSL https://raw.githubusercontent.com/MatthewGlenn/ayn-thor-wifi-fix/main/thor-wifi.sh \
   -o /data/local/tmp/thor-wifi.sh
-cp /data/local/tmp/thor-wifi.sh /data/adb/service.d/
-chmod 755 /data/adb/service.d/thor-wifi.sh
-chown root:root /data/adb/service.d/thor-wifi.sh
+```
+
+Install it as a boot script:
+
+```sh
+cp /data/local/tmp/thor-wifi.sh /data/adb/service.d/ && \
+  chmod 755 /data/adb/service.d/thor-wifi.sh && \
+  chown root:root /data/adb/service.d/thor-wifi.sh
 ```
 
 Run `su` **first**, then the rest. The script checks whether it has a terminal
@@ -197,12 +237,22 @@ password. Being inside a root shell avoids that.
 
 ### Install from a computer (adb)
 
-Download the script first, then push it:
+Download the script to your computer:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/MatthewGlenn/ayn-thor-wifi-fix/main/thor-wifi.sh \
   -o thor-wifi.sh
+```
+
+Push it to the device:
+
+```sh
 adb push thor-wifi.sh /data/local/tmp/
+```
+
+Install it as a boot script:
+
+```sh
 adb shell "su -c 'cp /data/local/tmp/thor-wifi.sh /data/adb/service.d/ && \
   chmod 755 /data/adb/service.d/thor-wifi.sh && \
   chown root:root /data/adb/service.d/thor-wifi.sh'"
@@ -247,6 +297,27 @@ That's it. Reboot and it connects on its own, in about 2 seconds.
    exits — so it's safe to leave installed when you travel.
 3. Connects pinned to the saved BSSID with a randomized MAC.
 4. Posts a notification only if it fails.
+
+### If setup says it failed
+
+The script reads the supplicant log to tell you which of two things went wrong,
+because they look identical from the outside:
+
+* **`The password was rejected (ERROR_AUTH_FAILURE_WRONG_PSWD).`** — the
+  password is wrong. Re-run `--setup` and check it. This is the common one, and
+  it is easy to hit because the prompt hides what you type.
+* **`The access point may have blacklisted this device's MAC.`** — the password
+  was accepted but the router stopped answering. Reboot the router, then run
+  `--setup` again.
+
+If you are not sure which you hit, check the log directly:
+
+```sh
+su -c 'dumpsys wifi | grep -o "AUTHENTICATION_FAILURE_EVENT reason=[0-9]*:[A-Z_]*"'
+```
+
+`ERROR_AUTH_FAILURE_WRONG_PSWD` means the password. Anything else, or no output
+at all, points at the router.
 
 ### If it stops working after a router reboot
 

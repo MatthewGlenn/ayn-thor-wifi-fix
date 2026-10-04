@@ -217,6 +217,25 @@ connect() {
     cmd wifi connect-network "$SSID" "$AUTH" "$PASSWORD" -b "$BSSID" -r "$MAC_MODE" >/dev/null 2>&1
 }
 
+# Work out why the last attempt failed, so the message names the real cause.
+# A wrong password and a MAC block look identical from the outside, but the
+# supplicant records which one it was. Prints a hint, or nothing if unknown.
+diagnose_failure() {
+    local dump
+    dump=$(dumpsys wifi 2>/dev/null)
+
+    if echo "$dump" | grep -q "ERROR_AUTH_FAILURE_WRONG_PSWD"; then
+        echo "The password was rejected (ERROR_AUTH_FAILURE_WRONG_PSWD)."
+        echo "Re-run with --setup and check the password."
+    elif echo "$dump" | grep -q "AUTHENTICATION_FAILURE_EVENT"; then
+        echo "Authentication failed. The password may be wrong, or the access"
+        echo "point may be rejecting this device."
+    else
+        echo "The access point may have blacklisted this device's MAC."
+        echo "Reboot the router, then run this again."
+    fi
+}
+
 # Connect and report. Returns 0 on success.
 test_connection() {
     echo ""
@@ -230,8 +249,7 @@ test_connection() {
     echo ""
     echo "FAILED — could not connect to $BSSID"
     echo ""
-    echo "The access point may have blacklisted this device's MAC."
-    echo "Reboot the router, then run this again."
+    diagnose_failure
     return 1
 }
 
@@ -707,5 +725,11 @@ NEW=$(current_bssid)
 STATE=$(cmd wifi status 2>/dev/null | grep -o 'Supplicant state: [A-Z]*' | head -1 | cut -d' ' -f3)
 log "timed out waiting for target BSSID (last BSSID: ${NEW:-none}, state: ${STATE:-unknown})"
 set_status "FAILED: still on ${NEW:-no AP} after 60s (state: ${STATE:-unknown})"
-notify "Could not connect to $SSID. The router may have blocked this device. Check $LOG"
+
+# Name the likely cause in the notification too, not just the console.
+if dumpsys wifi 2>/dev/null | grep -q "ERROR_AUTH_FAILURE_WRONG_PSWD"; then
+    notify "Could not connect to $SSID: the password was rejected. Re-run with --setup."
+else
+    notify "Could not connect to $SSID. The router may have blocked this device. Check $LOG"
+fi
 exit 1
