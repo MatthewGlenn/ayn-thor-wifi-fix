@@ -1,10 +1,10 @@
 # AYN Thor — Wi-Fi won't connect to a WPA2/WPA3 mixed-mode network
 
-**TL;DR:** The Thor fails to connect to WiFi networks sometimes and throws an authentication error. This is related to networks that present WPA2 and WPA3 at the same time (like my network 😭). Pinning the BSSID fixes it. This script that does it automatically on every boot. **Root required.**
+**TL;DR:** The Thor fails to connect to WiFi networks sometimes and throws an authentication error. This is related to networks that present WPA2 and WPA3 at the same time (my router 😭). Pinning the BSSID fixes it. This script that does it automatically on every boot. **Root required.**
 
 ---
 
-## Why it happens (slightly longer version)
+## Why it happens (slightly longer version that DeepSeek mostly wrote)
 
 1. If your router broadcasts WPA2 and WPA3-SAE on the same SSID — most mesh
    systems do — Android creates a linked profile pair and the WPA3 half is
@@ -28,15 +28,22 @@ You need three things: proof the failure is an SAE timeout, the BSSID of the AP
 you want to pin to, and the security type of that AP. All three come off the
 device.
 
+> **Running these from a computer?** The commands below are written for a root
+> shell on the Thor itself. If you're on a computer, wrap each one in
+> `adb shell "su -c '...'"` — for example
+> `adb shell "su -c 'cmd wifi list-scan-results'"`. Watch the quoting: the inner
+> command uses single quotes, so any double quotes inside it need escaping.
+
 ### 1. Confirm the failure is an SAE timeout
 
 Try to connect normally, let it fail, then read the failure reason:
 
 ```sh
-adb shell "su -c 'dumpsys wifi | grep -E \"level2Failure|networkType\"'"
+dumpsys wifi | grep -E "level2Failure|networkType"
 ```
 
-If it's this bug you'll see a WPA3 network type and an auth timeout:
+The output is one long line per connection attempt. The fields you care about
+are buried in it — here they are pulled out:
 
 ```sh
 level2FailureCode=AUTHENTICATION_FAILURE
@@ -49,13 +56,17 @@ durationMillis=10015
 the auto-upgrade creating the broken profile. If you see a different
 `level2FailureCode`, this isn't your problem and the script won't help.
 
+If the failure is old, the line you want may have scrolled past. `dumpsys wifi`
+keeps a rolling history, so grep for your SSID to find the most recent attempt
+for that network specifically.
+
 ### 2. Find the BSSID to pin to
 
 Scan and list what's in range. The columns are
 `BSSID  frequency  signal  age  SSID  flags`:
 
 ```sh
-adb shell "su -c 'cmd wifi list-scan-results'"
+cmd wifi list-scan-results
 ```
 
 You want a row for your SSID whose flags contain `RSN-PSK` (that's WPA2) and
@@ -64,12 +75,12 @@ whose frequency is in the 5 GHz range — 5150–5850 MHz. Ignore rows with
 first column.
 
 If your SSID doesn't appear, the scan cache is stale — toggle Wi-Fi off and on,
-or run `adb shell "su -c 'cmd wifi start-scan'"` and wait a few seconds.
+or run `cmd wifi start-scan` and wait a few seconds.
 
 ### 3. Confirm the AP's security type
 
 ```sh
-adb shell "su -c 'cmd wifi list-networks'"
+cmd wifi list-networks
 ```
 
 A mixed-mode SSID shows up **twice** under the same network id — once as
@@ -83,12 +94,12 @@ With the BSSID from step 2, run the connect by hand. This is what the script
 does on every boot:
 
 ```sh
-adb shell "su -c 'cmd wifi connect-network \"MyNetwork\" wpa2 <password> -b <bssid> -r auto'"
+cmd wifi connect-network "MyNetwork" wpa2 <password> -b <bssid> -r auto
 ```
 
-If that connects, you've confirmed the diagnosis. It won't survive a reboot —
+If that connects, you've confirmed the diagnosis. **It won't survive a reboot** and
 the paired profile comes back and the framework re-picks the broken WPA3 half.
-That's what the script automates.
+**That's what the script automates.**
 
 ---
 
