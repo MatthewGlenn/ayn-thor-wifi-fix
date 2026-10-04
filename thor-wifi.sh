@@ -36,7 +36,7 @@
 # Code written with AI Assistance from DeepSeek.
 
 # Bump on every change. `--version` prints it. Keep MAJOR.MINOR.PATCH.
-VERSION="1.0.0"
+VERSION="1.0.1"
 
 DIR="/data/local/thor-wifi"
 CONF="$DIR/config"
