@@ -1,6 +1,10 @@
 # AYN Thor — Wi-Fi won't connect to a WPA2/WPA3 mixed-mode network
 
-**TL;DR:** The Thor fails to connect to WiFi networks sometimes and throws an authentication error. This is related to networks that present WPA2 and WPA3 at the same time (my router 😭). Pinning the BSSID fixes it. This script that does it automatically on every boot. **Root required.**
+**TL;DR:** The Thor fails to connect to WiFi networks sometimes and throws an authentication error. This is related to networks that present WPA2 and WPA3 at the same time (my router 😭). Pinning the BSSID fixes it. This script does it automatically on every boot. **Root required.**
+
+**Code and documentation written with AI Assistance from DeepSeek.**
+
+Tested on `Thor_V1.0.0.377_20260206_165408_user` with Magisk 30.7.
 
 ### Quick start
 
@@ -16,7 +20,13 @@ chown root:root /data/adb/service.d/thor-wifi.sh
 sh /data/adb/service.d/thor-wifi.sh --setup
 ```
 
-**From a PC** (adb, script already downloaded):
+**From adb on a computer**:
+
+Download the script to your computer first if you haven't already and place it in your current working directory.
+
+You'll need to have `adb` installed and properly configured on your computer.
+
+These commands should work on any modern Linux, macOS, or Windows machine with `adb` installed.
 
 ```sh
 adb push thor-wifi.sh /data/local/tmp/
@@ -26,8 +36,8 @@ adb shell "su -c 'cp /data/local/tmp/thor-wifi.sh /data/adb/service.d/ && \
 adb shell "su -c 'sh /data/adb/service.d/thor-wifi.sh --setup'"
 ```
 
-`--setup` prompts for your SSID, password and band, then tests the connection.
-Reboot and it connects on its own. Details and troubleshooting below.
+`--setup` prompts for your SSID (network name), password and band, then tests the connection.
+When you reboot, it will connect on its own. No more network amnesia!
 
 ---
 
@@ -55,11 +65,6 @@ You need three things: proof the failure is an SAE timeout, the BSSID of the AP
 you want to pin to, and the security type of that AP. All three come off the
 device.
 
-> **Running these from a computer?** Every command below is given in both forms.
-> The PC form wraps the command in `adb shell "su -c '...'"`. Watch the quoting:
-> the inner command uses single quotes, so any double quotes inside it need
-> escaping.
-
 ### 1. Confirm the failure is an SAE timeout
 
 Try to connect normally, let it fail, then read the failure reason.
@@ -70,7 +75,7 @@ Try to connect normally, let it fail, then read the failure reason.
 dumpsys wifi | grep -E "level2Failure|networkType"
 ```
 
-**From a PC:**
+**From adb on a computer:**
 
 ```sh
 adb shell "su -c 'dumpsys wifi | grep -E \"level2Failure|networkType\"'"
@@ -105,7 +110,7 @@ Scan and list what's in range. The columns are
 cmd wifi list-scan-results
 ```
 
-**From a PC:**
+**From adb on a computer:**
 
 ```sh
 adb shell "su -c 'cmd wifi list-scan-results'"
@@ -127,7 +132,7 @@ or run `cmd wifi start-scan` and wait a few seconds.
 cmd wifi list-networks
 ```
 
-**From a PC:**
+**From adb on a computer:**
 
 ```sh
 adb shell "su -c 'cmd wifi list-networks'"
@@ -149,7 +154,7 @@ does on every boot.
 cmd wifi connect-network "MyNetwork" wpa2 <password> -b <bssid> -r auto
 ```
 
-**From a PC:**
+**From adb on a computer:**
 
 ```sh
 adb shell "su -c 'cmd wifi connect-network \"MyNetwork\" wpa2 <password> -b <bssid> -r auto'"
@@ -219,7 +224,7 @@ sh /data/adb/service.d/thor-wifi.sh --setup
 doesn't provide one — it would take the boot path and exit without asking you
 anything.
 
-**From a PC:**
+**From adb on a computer:**
 
 ```sh
 adb shell "su -c 'sh /data/adb/service.d/thor-wifi.sh --setup'"
@@ -255,15 +260,13 @@ su
 sh /data/adb/service.d/thor-wifi.sh --rediscover
 ```
 
-**From a PC:**
+**From adb on a computer:**
 
 ```sh
 adb shell "su -c 'sh /data/adb/service.d/thor-wifi.sh --rediscover'"
 ```
 
 ### Uninstall
-
-The script removes itself — there's no second file to download.
 
 **On the Thor:**
 
@@ -272,7 +275,7 @@ su
 sh /data/adb/service.d/thor-wifi.sh --uninstall --forget
 ```
 
-**From a PC:**
+**From adb on a computer:**
 
 ```sh
 adb shell "su -c 'sh /data/adb/service.d/thor-wifi.sh --uninstall --forget'"
@@ -287,19 +290,13 @@ is deleted.
 ## Notes
 
 * **The password is stored in plaintext** at `/data/local/thor-wifi/cred`,
-  `600 root:root`. This is not a downgrade — Android already stores your Wi-Fi
-  passphrase in plaintext in `WifiConfigStore.xml`. There's no `openssl` or
-  `gpg` on the device, and a key stored next to the ciphertext is just
-  obfuscation. `/data` is file-based encrypted, so the real threat model is an
-  unlocked, rooted device.
+  `600 root:root`. Android already stores your Wi-Fi passphrase in plaintext in
+  `WifiConfigStore.xml`. I wanted to try encrypting it, but there's no `openssl`
+  or `gpg` on the device, and a key stored next to the ciphertext doesn't really
+  solve the problem. `/data` is file-based encrypted, so the real threat model is
+  an unlocked, rooted device.
 * **5 GHz WPA2 is the target, not 6 GHz.** 6 GHz on these routers is SAE-only
   with no WPA2 fallback, so it re-triggers bug 1 on every reconnect. 5 GHz WPA2
   gives the same throughput (960–1200 Mbps) without SAE.
-* **No firmware fix exists.** Last Wi-Fi fix was v1.0.0.360; current build
-  v1.0.0.377 only reverted the Black Theme.
-* **Read the script before you run it.** It runs as root on every boot. It's
-  short enough to read in one sitting, and that's the only real protection
-  against a bad copy.
-* **Code written with AI Assistance from DeepSeek.** 
-
-Tested on `Thor_V1.0.0.377_20260206_165408_user`, Magisk 30.7.
+* **No firmware fix currently exists.** Last Wi-Fi fix was v1.0.0.360.
+* **Read the script before you run it.** It runs as root on every boot. So be sure you understand what it does.
