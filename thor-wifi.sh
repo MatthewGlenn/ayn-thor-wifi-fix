@@ -12,7 +12,6 @@
 #   Re-pick AP: adb shell "su -c 'sh /data/adb/service.d/thor-wifi.sh --rediscover'"
 #   Debug:      adb shell "su -c 'sh /data/adb/service.d/thor-wifi.sh --log'"
 #   Version:    adb shell "su -c 'sh /data/adb/service.d/thor-wifi.sh --version'"
-#   Update:     adb shell "su -c 'sh /data/adb/service.d/thor-wifi.sh --update'"
 #   Uninstall:  adb shell "su -c 'sh /data/adb/service.d/thor-wifi.sh --uninstall'"
 #
 # --setup asks which band to prefer (5 GHz by default). The choice is saved in
@@ -36,8 +35,7 @@
 #
 # Code written with AI Assistance from DeepSeek.
 
-# Bump on every change. `--version` prints it; a future `--update` can compare
-# it against a published copy. Keep MAJOR.MINOR.PATCH — the comparison parses it.
+# Bump on every change. `--version` prints it. Keep MAJOR.MINOR.PATCH.
 VERSION="1.0.0"
 
 DIR="/data/local/thor-wifi"
@@ -47,10 +45,6 @@ LOG="/data/local/tmp/thor-wifi-boot.log"
 STATUS="/data/local/tmp/thor-wifi-boot.status"
 SELF="/data/adb/service.d/thor-wifi.sh"
 STAGING="/data/local/tmp/thor-wifi.sh"
-
-# Where --update fetches from. Pin to a tag for a frozen copy, or leave on the
-# default branch to always get the latest.
-UPDATE_URL="https://raw.githubusercontent.com/MatthewGlenn/ayn-thor-wifi-fix/main/thor-wifi.sh"
 
 KEEP_DAYS=7
 LOGGING=0
@@ -375,113 +369,6 @@ do_version() {
 }
 
 # ========================================================================
-# Update — fetch the latest script and reinstall it
-# ========================================================================
-# Downloads the published copy, checks it is a plausible script, and only then
-# replaces the installed file. The config and credential files are untouched.
-#
-# The download is NOT verified against a signature. It is fetched over HTTPS
-# from a fixed URL, which is the same trust model as the initial install. Read
-# the diff if you care: `--update --dry-run` prints it and changes nothing.
-do_update() {
-    UPDATE_DRY_RUN=0
-    while [ $# -gt 0 ]; do
-        case "$1" in
-            --dry-run) UPDATE_DRY_RUN=1 ;;
-            *)
-                echo "Unknown option for --update: $1"
-                echo "Usage: thor-wifi.sh --update [--dry-run]"
-                exit 1
-                ;;
-        esac
-        shift
-    done
-
-    echo ""
-    echo "=== Thor Wi-Fi update ==="
-    echo ""
-    echo "Installed: $VERSION"
-
-    if ! command -v curl >/dev/null 2>&1; then
-        echo ""
-        echo "curl is not available on this device."
-        echo "Update from a computer instead:"
-        echo "  adb push thor-wifi.sh /data/local/tmp/"
-        echo "  adb shell \"su -c 'cp /data/local/tmp/thor-wifi.sh $SELF'\""
-        exit 1
-    fi
-
-    TMP="$STAGING.new"
-    rm -f "$TMP"
-
-    echo "Fetching $UPDATE_URL"
-    if ! curl -fsSL "$UPDATE_URL" -o "$TMP" 2>/dev/null; then
-        echo ""
-        echo "Download failed. Check the device has internet access."
-        rm -f "$TMP"
-        exit 1
-    fi
-
-    # Refuse anything that is not the script we expect. A captive portal or an
-    # error page would otherwise be installed over a working boot script.
-    if ! head -1 "$TMP" | grep -q '^#!/system/bin/sh'; then
-        echo ""
-        echo "Downloaded file is not a shell script. Aborting."
-        rm -f "$TMP"
-        exit 1
-    fi
-    if ! grep -q '^VERSION=' "$TMP"; then
-        echo ""
-        echo "Downloaded file has no VERSION line. Aborting."
-        rm -f "$TMP"
-        exit 1
-    fi
-
-    NEW=$(grep '^VERSION=' "$TMP" | head -1 | cut -d'"' -f2)
-
-    if [ "$NEW" = "$VERSION" ]; then
-        echo "Already up to date ($VERSION)."
-        rm -f "$TMP"
-        echo ""
-        exit 0
-    fi
-
-    echo "Available: $NEW"
-    echo ""
-
-    if [ "$UPDATE_DRY_RUN" = "1" ]; then
-        echo "--- diff (installed -> available) ---"
-        diff "$SELF" "$TMP" 2>/dev/null || true
-        echo "--- end diff ---"
-        echo ""
-        echo "Dry run — nothing was changed."
-        rm -f "$TMP"
-        echo ""
-        exit 0
-    fi
-
-    chmod 755 "$TMP"
-    chown 0:0 "$TMP" 2>/dev/null
-
-    # Keep the old copy until the new one is in place, so a failed move cannot
-    # leave the device with no boot script.
-    cp "$SELF" "$SELF.old" 2>/dev/null
-    if ! cp "$TMP" "$SELF"; then
-        echo "Could not write $SELF. Aborting."
-        rm -f "$TMP"
-        exit 1
-    fi
-    chmod 755 "$SELF"
-    chown 0:0 "$SELF" 2>/dev/null
-    rm -f "$TMP" "$SELF.old"
-
-    echo "Updated $VERSION -> $NEW"
-    echo "Config and password were not touched."
-    echo ""
-    exit 0
-}
-
-# ========================================================================
 # Uninstall — removes everything this script creates
 # ========================================================================
 # Options:
@@ -668,7 +555,6 @@ while [ $# -gt 0 ]; do
         --setup)      do_setup ;;
         --rediscover) do_rediscover ;;
         --version)    do_version; exit 0 ;;
-        --update)     shift; do_update "$@" ;;
         --uninstall)  shift; do_uninstall "$@" ;;
         --keep-days)
             KEEP_DAYS="$2"
@@ -701,7 +587,6 @@ while [ $# -gt 0 ]; do
             echo "Unknown option: $1"
             echo "Usage: thor-wifi.sh [--setup] [--rediscover] [--log] [--no-log] [--keep-days N]"
             echo "       thor-wifi.sh --version"
-            echo "       thor-wifi.sh --update [--dry-run]"
             echo "       thor-wifi.sh --uninstall [--forget] [--dry-run] [--yes]"
             exit 1
             ;;

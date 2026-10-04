@@ -55,18 +55,25 @@ You need three things: proof the failure is an SAE timeout, the BSSID of the AP
 you want to pin to, and the security type of that AP. All three come off the
 device.
 
-> **Running these from a computer?** The commands below are written for a root
-> shell on the Thor itself. If you're on a computer, wrap each one in
-> `adb shell "su -c '...'"` — for example
-> `adb shell "su -c 'cmd wifi list-scan-results'"`. Watch the quoting: the inner
-> command uses single quotes, so any double quotes inside it need escaping.
+> **Running these from a computer?** Every command below is given in both forms.
+> The PC form wraps the command in `adb shell "su -c '...'"`. Watch the quoting:
+> the inner command uses single quotes, so any double quotes inside it need
+> escaping.
 
 ### 1. Confirm the failure is an SAE timeout
 
-Try to connect normally, let it fail, then read the failure reason:
+Try to connect normally, let it fail, then read the failure reason.
+
+**On the Thor:**
 
 ```sh
 dumpsys wifi | grep -E "level2Failure|networkType"
+```
+
+**From a PC:**
+
+```sh
+adb shell "su -c 'dumpsys wifi | grep -E \"level2Failure|networkType\"'"
 ```
 
 The output is one long line per connection attempt. The fields you care about
@@ -90,10 +97,18 @@ for that network specifically.
 ### 2. Find the BSSID to pin to
 
 Scan and list what's in range. The columns are
-`BSSID  frequency  signal  age  SSID  flags`:
+`BSSID  frequency  signal  age  SSID  flags`.
+
+**On the Thor:**
 
 ```sh
 cmd wifi list-scan-results
+```
+
+**From a PC:**
+
+```sh
+adb shell "su -c 'cmd wifi list-scan-results'"
 ```
 
 You want a row for your SSID whose flags contain `RSN-PSK` (that's WPA2) and
@@ -106,8 +121,16 @@ or run `cmd wifi start-scan` and wait a few seconds.
 
 ### 3. Confirm the AP's security type
 
+**On the Thor:**
+
 ```sh
 cmd wifi list-networks
+```
+
+**From a PC:**
+
+```sh
+adb shell "su -c 'cmd wifi list-networks'"
 ```
 
 A mixed-mode SSID shows up **twice** under the same network id — once as
@@ -118,10 +141,18 @@ forget the network later.
 ### 4. Try the manual fix
 
 With the BSSID from step 2, run the connect by hand. This is what the script
-does on every boot:
+does on every boot.
+
+**On the Thor:**
 
 ```sh
 cmd wifi connect-network "MyNetwork" wpa2 <password> -b <bssid> -r auto
+```
+
+**From a PC:**
+
+```sh
+adb shell "su -c 'cmd wifi connect-network \"MyNetwork\" wpa2 <password> -b <bssid> -r auto'"
 ```
 
 If that connects, you've confirmed the diagnosis. **It won't survive a reboot** and
@@ -161,7 +192,11 @@ password. Being inside a root shell avoids that.
 
 ### Install from a computer (adb)
 
+Download the script first, then push it:
+
 ```sh
+curl -fsSL https://raw.githubusercontent.com/MatthewGlenn/ayn-thor-wifi-fix/main/thor-wifi.sh \
+  -o thor-wifi.sh
 adb push thor-wifi.sh /data/local/tmp/
 adb shell "su -c 'cp /data/local/tmp/thor-wifi.sh /data/adb/service.d/ && \
   chmod 755 /data/adb/service.d/thor-wifi.sh && \
@@ -173,6 +208,8 @@ adb shell "su -c 'cp /data/local/tmp/thor-wifi.sh /data/adb/service.d/ && \
 Run it once by hand. It prompts for your SSID and password, asks which band to
 prefer, scans, picks the best AP in that band, and tests the connection.
 
+**On the Thor:**
+
 ```sh
 su
 sh /data/adb/service.d/thor-wifi.sh --setup
@@ -182,8 +219,14 @@ sh /data/adb/service.d/thor-wifi.sh --setup
 doesn't provide one — it would take the boot path and exit without asking you
 anything.
 
-From a computer, that's `adb shell "su -c 'sh /data/adb/service.d/thor-wifi.sh --setup'"`
-— but you'll want to run it on the device, since the prompt is interactive.
+**From a PC:**
+
+```sh
+adb shell "su -c 'sh /data/adb/service.d/thor-wifi.sh --setup'"
+```
+
+Run this one on the device if you can — the prompt is interactive, and the adb
+form only works cleanly when your terminal forwards stdin.
 
 The band prompt defaults to **5 GHz**. Pick 2.4 GHz if you'd rather have range
 than speed — the choice is saved and used on every boot and by `--rediscover`.
@@ -200,73 +243,39 @@ That's it. Reboot and it connects on its own, in about 2 seconds.
 3. Connects pinned to the saved BSSID with a randomized MAC.
 4. Posts a notification only if it fails.
 
-### Check on it
-
-One-line result of the last run:
-
-```sh
-cat /data/local/tmp/thor-wifi-boot.status
-```
-
-| Status | Meaning |
-|:---|:---|
-| `OK: connected to <bssid>` | Connected to the target AP |
-| `OK: already on target AP` | Was already there, nothing to do |
-| `SKIPPED: <ssid> not in range` | Away from home, did nothing |
-| `SKIPPED: wifi disabled` | Wi-Fi was off |
-| `SKIPPED: not configured` | No config yet — run setup |
-| `FAILED: ...` | Something went wrong; a notification is posted |
-
-The status file is written every time the script runs. If you just installed it
-and haven't rebooted yet, the file won't exist — reboot, or run the script once
-with no arguments.
-
 ### If it stops working after a router reboot
 
 Mesh systems rotate BSSIDs on reboot. Re-pick the AP without re-entering your
-password:
+password.
+
+**On the Thor:**
 
 ```sh
 su
 sh /data/adb/service.d/thor-wifi.sh --rediscover
 ```
 
-### Update
+**From a PC:**
 
 ```sh
-su
-sh /data/adb/service.d/thor-wifi.sh --update
+adb shell "su -c 'sh /data/adb/service.d/thor-wifi.sh --rediscover'"
 ```
-
-Fetches the current script, checks it's actually a script, and replaces the
-installed copy. Your config and password are left alone. Add `--dry-run` to see
-the diff first and change nothing.
-
-The download is not signature-verified — it's fetched over HTTPS from a fixed
-URL, the same trust model as the initial install. If that matters to you, use
-`--update --dry-run` and read the diff.
-
-### Logging
-
-**Off by default** — a log nobody reads is just a file that grows. Turn it on
-if you're debugging:
-
-```sh
-su
-sh /data/adb/service.d/thor-wifi.sh --log
-```
-
-Logs are trimmed to 7 days on each boot. Change that with `--keep-days N`.
-
-Check which version you're running with `--version`.
 
 ### Uninstall
 
-The script removes itself — there's no second file to download:
+The script removes itself — there's no second file to download.
+
+**On the Thor:**
 
 ```sh
 su
 sh /data/adb/service.d/thor-wifi.sh --uninstall --forget
+```
+
+**From a PC:**
+
+```sh
+adb shell "su -c 'sh /data/adb/service.d/thor-wifi.sh --uninstall --forget'"
 ```
 
 `--forget` also removes the saved network profile. Without it, your network is
@@ -288,9 +297,6 @@ is deleted.
   gives the same throughput (960–1200 Mbps) without SAE.
 * **No firmware fix exists.** Last Wi-Fi fix was v1.0.0.360; current build
   v1.0.0.377 only reverted the Black Theme.
-* **The community app `parthi1994/ayn-thor-wifi-recovery` does not fix this.**
-  It calls `connect-network` without `-b`, so it hits bug 1 every time. It also
-  requires root.
 * **Read the script before you run it.** It runs as root on every boot. It's
   short enough to read in one sitting, and that's the only real protection
   against a bad copy.
