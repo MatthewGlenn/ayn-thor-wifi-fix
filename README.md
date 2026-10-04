@@ -2,6 +2,33 @@
 
 **TL;DR:** The Thor fails to connect to WiFi networks sometimes and throws an authentication error. This is related to networks that present WPA2 and WPA3 at the same time (my router 😭). Pinning the BSSID fixes it. This script that does it automatically on every boot. **Root required.**
 
+### Quick start
+
+**On the Thor** (terminal app, no computer needed):
+
+```sh
+su
+curl -fsSL https://raw.githubusercontent.com/MatthewGlenn/ayn-thor-wifi-fix/main/thor-wifi.sh \
+  -o /data/local/tmp/thor-wifi.sh
+cp /data/local/tmp/thor-wifi.sh /data/adb/service.d/
+chmod 755 /data/adb/service.d/thor-wifi.sh
+chown root:root /data/adb/service.d/thor-wifi.sh
+sh /data/adb/service.d/thor-wifi.sh --setup
+```
+
+**From a PC** (adb, script already downloaded):
+
+```sh
+adb push thor-wifi.sh /data/local/tmp/
+adb shell "su -c 'cp /data/local/tmp/thor-wifi.sh /data/adb/service.d/ && \
+  chmod 755 /data/adb/service.d/thor-wifi.sh && \
+  chown root:root /data/adb/service.d/thor-wifi.sh'"
+adb shell "su -c 'sh /data/adb/service.d/thor-wifi.sh --setup'"
+```
+
+`--setup` prompts for your SSID, password and band, then tests the connection.
+Reboot and it connects on its own. Details and troubleshooting below.
+
 ---
 
 ## Why it happens (slightly longer version that DeepSeek mostly wrote)
