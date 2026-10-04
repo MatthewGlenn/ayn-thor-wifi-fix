@@ -111,16 +111,7 @@ hunt for a BSSID.
 
 **Requirements:** rooted Thor with Magisk. `cmd wifi connect-network` is gated
 behind `NETWORK_SETTINGS`, which is root-only. Shizuku and Tasker run as UID
-2000 and fail with `SecurityException`. There is no non-root fix.
-
-### Install from a computer (adb)
-
-```sh
-adb push thor-wifi.sh /data/local/tmp/
-adb shell "su -c 'cp /data/local/tmp/thor-wifi.sh /data/adb/service.d/ && \
-  chmod 755 /data/adb/service.d/thor-wifi.sh && \
-  chown root:root /data/adb/service.d/thor-wifi.sh'"
-```
+2000 and fail with `SecurityException`. **There is no non-root fix that I am aware of.**
 
 ### Install on the Thor itself (no computer)
 
@@ -141,14 +132,31 @@ to decide between prompting and running silently, and a non-interactive `su -c`
 doesn't give it one — so it would take the boot path instead of asking for your
 password. Being inside a root shell avoids that.
 
+### Install from a computer (adb)
+
+```sh
+adb push thor-wifi.sh /data/local/tmp/
+adb shell "su -c 'cp /data/local/tmp/thor-wifi.sh /data/adb/service.d/ && \
+  chmod 755 /data/adb/service.d/thor-wifi.sh && \
+  chown root:root /data/adb/service.d/thor-wifi.sh'"
+```
+
 ### Configure
 
 Run it once by hand. It prompts for your SSID and password, asks which band to
-prefer, scans, picks the best AP in that band, and tests the connection:
+prefer, scans, picks the best AP in that band, and tests the connection.
 
 ```sh
-adb shell "su -c 'sh /data/adb/service.d/thor-wifi.sh --setup'"
+su
+sh /data/adb/service.d/thor-wifi.sh --setup
 ```
+
+`su` first. The script needs a terminal to prompt, and a non-interactive `su -c`
+doesn't provide one — it would take the boot path and exit without asking you
+anything.
+
+From a computer, that's `adb shell "su -c 'sh /data/adb/service.d/thor-wifi.sh --setup'"`
+— but you'll want to run it on the device, since the prompt is interactive.
 
 The band prompt defaults to **5 GHz**. Pick 2.4 GHz if you'd rather have range
 than speed — the choice is saved and used on every boot and by `--rediscover`.
@@ -167,9 +175,10 @@ That's it. Reboot and it connects on its own, in about 2 seconds.
 
 ### Check on it
 
+One-line result of the last run:
+
 ```sh
-# One-line result of the last run
-adb shell "su -c 'cat /data/local/tmp/thor-wifi-boot.status'"
+cat /data/local/tmp/thor-wifi-boot.status
 ```
 
 | Status | Meaning |
@@ -191,13 +200,15 @@ Mesh systems rotate BSSIDs on reboot. Re-pick the AP without re-entering your
 password:
 
 ```sh
-adb shell "su -c 'sh /data/adb/service.d/thor-wifi.sh --rediscover'"
+su
+sh /data/adb/service.d/thor-wifi.sh --rediscover
 ```
 
 ### Update
 
 ```sh
-adb shell "su -c 'sh /data/adb/service.d/thor-wifi.sh --update'"
+su
+sh /data/adb/service.d/thor-wifi.sh --update
 ```
 
 Fetches the current script, checks it's actually a script, and replaces the
@@ -214,7 +225,8 @@ URL, the same trust model as the initial install. If that matters to you, use
 if you're debugging:
 
 ```sh
-adb shell "su -c 'sh /data/adb/service.d/thor-wifi.sh --log'"
+su
+sh /data/adb/service.d/thor-wifi.sh --log
 ```
 
 Logs are trimmed to 7 days on each boot. Change that with `--keep-days N`.
@@ -226,7 +238,8 @@ Check which version you're running with `--version`.
 The script removes itself — there's no second file to download:
 
 ```sh
-adb shell "su -c 'sh /data/adb/service.d/thor-wifi.sh --uninstall --forget'"
+su
+sh /data/adb/service.d/thor-wifi.sh --uninstall --forget
 ```
 
 `--forget` also removes the saved network profile. Without it, your network is
@@ -254,6 +267,6 @@ is deleted.
 * **Read the script before you run it.** It runs as root on every boot. It's
   short enough to read in one sitting, and that's the only real protection
   against a bad copy.
-* **Code written with AI Assistance from DeepSeek.**
+* **Code written with AI Assistance from DeepSeek.** 
 
 Tested on `Thor_V1.0.0.377_20260206_165408_user`, Magisk 30.7.
